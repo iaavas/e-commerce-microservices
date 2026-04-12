@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+          order: 0
+
+jwt:
+  # Must match auth-service `jwt.secret` (HS256). Override via JWT_SECRET in production.
+  secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

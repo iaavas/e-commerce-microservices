@@ -1,0 +1,2 @@
+# Shared defaults served to clients (example). Add per-app files as
+# {application-name}.yml under classpath:/config when using native profile.
