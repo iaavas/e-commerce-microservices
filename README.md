@@ -50,33 +50,36 @@ Through the gateway, clients typically use **port 8080** (not direct service por
 
 1. **JDK 17 or newer** (the parent POM targets Java 17).
 2. **Maven** — or use the included **`./mvnw`** (Unix/macOS) / **`mvnw.cmd`** (Windows).
-3. **MySQL 8.x** — running locally (or reachable from your machine) for the **auth** database `auth_db`. Default connection in `auth-service` is `localhost:3306`, user `root`, password `root` (change in `auth-service/src/main/resources/application.yml` or via env if you externalize config).
-4. **Docker** (optional) — for PostgreSQL via `docker-compose.yml` if you extend services to use it later.
+3. **MySQL 8.x** — required by **auth-service**. Easiest: start the DB with Docker (see below). Or install MySQL locally and use the same credentials.
+4. **Docker** (recommended) — runs MySQL (and optional PostgreSQL) from `docker-compose.yml` so you avoid `Connection refused` on `localhost:3306`.
 
 ---
 
 ## Infrastructure
 
-### MySQL for authentication
+### MySQL for authentication (auth-service)
 
-Create the schema (or rely on JDBC `createDatabaseIfNotExist=true` in the URL):
+**Recommended:** start MySQL from the repo root (waits until the server accepts connections):
 
-- **Database name:** `auth_db`
-- Default JDBC URL pattern:
+```bash
+docker compose up -d mysql
+```
 
-  `jdbc:mysql://localhost:3306/auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC`
+This maps **3306** on your machine to MySQL **8.4**, `root` / `root`, database `auth_db`. Then run auth-service; it connects to `localhost:3306` by default.
 
-Ensure the MySQL user and password match `spring.datasource.username` / `spring.datasource.password` in `auth-service`.
-
-### Optional: PostgreSQL (Docker)
-
-From the repository root:
+To start **all** compose services (MySQL + PostgreSQL):
 
 ```bash
 docker compose up -d
 ```
 
-This starts PostgreSQL on **5432** with user/password `postgres` / `postgres` and database `ecommerce`. The current **auth-service** uses **MySQL**, not this Postgres instance, unless you change the datasource configuration.
+PostgreSQL on **5432** is for future use; **auth-service** uses **MySQL** only unless you change its datasource.
+
+If you see **`Communications link failure`** or **`Connection refused`**, nothing is listening on the host/port you configured: start the container above, or set `MYSQL_HOST` / `MYSQL_PORT` if MySQL runs elsewhere.
+
+### Optional: PostgreSQL (Docker)
+
+The `postgres` service in `docker-compose.yml` exposes **5432** with user/password `postgres` / `postgres` and database `ecommerce`.
 
 ---
 
@@ -85,6 +88,10 @@ This starts PostgreSQL on **5432** with user/password `postgres` / `postgres` an
 | Variable | Used by | Purpose |
 |----------|---------|---------|
 | `JWT_SECRET` | **auth-service**, **api-gateway** | Shared HMAC secret for signing and validating JWTs. **Must be identical** on both. Minimum length suitable for HS256 (use a long random string in production). |
+| `MYSQL_HOST` | **auth-service** | Database host (default `localhost`; use service name `mysql` if the app runs in the same Docker network). |
+| `MYSQL_PORT` | **auth-service** | Database port (default `3306`). |
+| `MYSQL_DATABASE` | **auth-service** | Database name (default `auth_db`). |
+| `MYSQL_USER` / `MYSQL_PASSWORD` | **auth-service** | Credentials (defaults `root` / `root`, matching `docker-compose.yml`). |
 
 If unset, both services fall back to the default in `application.yml` (development only).
 
@@ -132,7 +139,7 @@ Open the dashboard: [http://localhost:8761](http://localhost:8761)
 
 ### 3. MySQL
 
-Ensure MySQL is running and `auth_db` is available (see above).
+Start the database before auth-service (for example `docker compose up -d mysql`) and wait until it is healthy.
 
 ### 4. Auth Service
 
