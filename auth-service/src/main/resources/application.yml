@@ -5,11 +5,10 @@ spring:
   application:
     name: auth-service
   datasource:
-    # Defaults match docker-compose `mysql` service (host mysql when app runs in Docker; localhost on your machine).
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:auth_db}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:root}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    # Defaults match docker-compose `postgres` service (host postgres when app runs in Docker; localhost on your machine).
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:ecommerce}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:postgres}
   jpa:
     hibernate:
       ddl-auto: update

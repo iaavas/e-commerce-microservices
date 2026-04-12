@@ -1,6 +1,6 @@
 # E-Commerce Platform
 
-Spring Boot microservices for an e-commerce backend: **Netflix Eureka** discovery, **Spring Cloud Gateway** (JWT validation), **Auth** (Spring Security, JWT, MySQL), and domain services (product, order, payment, notification). A **Config Server** serves shared configuration from the classpath.
+Spring Boot microservices for an e-commerce backend: **Netflix Eureka** discovery, **Spring Cloud Gateway** (JWT validation), **Auth** (Spring Security, JWT, PostgreSQL), and domain services (product, order, payment, notification). A **Config Server** serves shared configuration from the classpath.
 
 ---
 
@@ -24,7 +24,7 @@ The diagram below shows how clients reach the API Gateway, how services register
 | Service discovery | Netflix Eureka |
 | Central config | Spring Cloud Config (native profile) |
 | Auth | Spring Security, JWT (JJWT), BCrypt |
-| Auth persistence | MySQL (`auth_db`) |
+| Auth persistence | PostgreSQL (`ecommerce` database) |
 | Build | Maven (wrapper included) |
 
 ---
@@ -50,36 +50,30 @@ Through the gateway, clients typically use **port 8080** (not direct service por
 
 1. **JDK 17 or newer** (the parent POM targets Java 17).
 2. **Maven** — or use the included **`./mvnw`** (Unix/macOS) / **`mvnw.cmd`** (Windows).
-3. **MySQL 8.x** — required by **auth-service**. Easiest: start the DB with Docker (see below). Or install MySQL locally and use the same credentials.
-4. **Docker** (recommended) — runs MySQL (and optional PostgreSQL) from `docker-compose.yml` so you avoid `Connection refused` on `localhost:3306`.
+3. **PostgreSQL** — required by **auth-service**. Easiest: start the DB with Docker (see below). Or install PostgreSQL locally and use the same host, port, database, and credentials.
+4. **Docker** (recommended) — runs PostgreSQL from `docker-compose.yml` so you avoid `Connection refused` on `localhost:5432`.
 
 ---
 
 ## Infrastructure
 
-### MySQL for authentication (auth-service)
+### PostgreSQL (auth-service and Docker)
 
-**Recommended:** start MySQL from the repo root (waits until the server accepts connections):
+**Recommended:** start PostgreSQL from the repo root:
 
 ```bash
-docker compose up -d mysql
+docker compose up -d postgres
 ```
 
-This maps **3306** on your machine to MySQL **8.4**, `root` / `root`, database `auth_db`. Then run auth-service; it connects to `localhost:3306` by default.
-
-To start **all** compose services (MySQL + PostgreSQL):
+This maps **5432** on your machine to PostgreSQL **16**, user/password `postgres` / `postgres`, database **`ecommerce`**. **auth-service** uses this database for the `users` table (Hibernate `ddl-auto: update` creates it).
 
 ```bash
 docker compose up -d
 ```
 
-PostgreSQL on **5432** is for future use; **auth-service** uses **MySQL** only unless you change its datasource.
+starts the same service (there is only PostgreSQL in Compose).
 
-If you see **`Communications link failure`** or **`Connection refused`**, nothing is listening on the host/port you configured: start the container above, or set `MYSQL_HOST` / `MYSQL_PORT` if MySQL runs elsewhere.
-
-### Optional: PostgreSQL (Docker)
-
-The `postgres` service in `docker-compose.yml` exposes **5432** with user/password `postgres` / `postgres` and database `ecommerce`.
+If you see **`Connection refused`** to `localhost:5432`, start the container above or point **`PGHOST`** / **`PGPORT`** at your own PostgreSQL instance.
 
 ---
 
@@ -88,10 +82,10 @@ The `postgres` service in `docker-compose.yml` exposes **5432** with user/passwo
 | Variable | Used by | Purpose |
 |----------|---------|---------|
 | `JWT_SECRET` | **auth-service**, **api-gateway** | Shared HMAC secret for signing and validating JWTs. **Must be identical** on both. Minimum length suitable for HS256 (use a long random string in production). |
-| `MYSQL_HOST` | **auth-service** | Database host (default `localhost`; use service name `mysql` if the app runs in the same Docker network). |
-| `MYSQL_PORT` | **auth-service** | Database port (default `3306`). |
-| `MYSQL_DATABASE` | **auth-service** | Database name (default `auth_db`). |
-| `MYSQL_USER` / `MYSQL_PASSWORD` | **auth-service** | Credentials (defaults `root` / `root`, matching `docker-compose.yml`). |
+| `PGHOST` | **auth-service** | PostgreSQL host (default `localhost`; use `postgres` if the app runs in the same Docker network as Compose). |
+| `PGPORT` | **auth-service** | PostgreSQL port (default `5432`). |
+| `PGDATABASE` | **auth-service** | Database name (default `ecommerce`, matching `docker-compose.yml`). |
+| `PGUSER` / `PGPASSWORD` | **auth-service** | Credentials (defaults `postgres` / `postgres`). |
 
 If unset, both services fall back to the default in `application.yml` (development only).
 
@@ -137,9 +131,9 @@ Open the dashboard: [http://localhost:8761](http://localhost:8761)
 ./mvnw -pl config-server spring-boot:run
 ```
 
-### 3. MySQL
+### 3. PostgreSQL
 
-Start the database before auth-service (for example `docker compose up -d mysql`) and wait until it is healthy.
+Start the database before auth-service (for example `docker compose up -d postgres`) and wait until it is healthy.
 
 ### 4. Auth Service
 
@@ -234,7 +228,7 @@ Or a single module:
 ```
 ecommerce-platform/
 ├── api-gateway/          # Spring Cloud Gateway + JWT filter
-├── auth-service/         # JWT auth, MySQL users
+├── auth-service/         # JWT auth, PostgreSQL users
 ├── config-server/
 ├── service-registry/     # Eureka
 ├── product-service/
