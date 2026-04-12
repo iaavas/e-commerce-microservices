@@ -4,8 +4,9 @@ server:
 spring:
   application:
     name: auth-service
+  profiles:
+    default: dev
   datasource:
-    # Defaults match docker-compose `postgres` service (host postgres when app runs in Docker; localhost on your machine).
     url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:ecommerce}
     username: ${PGUSER:postgres}
     password: ${PGPASSWORD:postgres}
@@ -13,9 +14,17 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  flyway:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
 
 jwt:
-  secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+  secret: ${JWT_SECRET:}
   expiration-ms: 86400000
 
 eureka:

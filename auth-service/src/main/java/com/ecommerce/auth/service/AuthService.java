@@ -1,5 +1,6 @@
 package com.ecommerce.auth.service;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,11 @@ public class AuthService {
 		User user = new User();
 		user.setEmail(normalized);
 		user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-		userRepository.save(user);
+		try {
+			userRepository.save(user);
+		} catch (DataIntegrityViolationException ex) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered", ex);
+		}
 		String token = jwtService.generateToken(user);
 		return toResponse(token);
 	}
