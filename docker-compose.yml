@@ -17,5 +17,11 @@ services:
       retries: 10
       start_period: 10s
 
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    ports:
+      - "6379:6379"
+
 volumes:
   ecommerce-pgdata:

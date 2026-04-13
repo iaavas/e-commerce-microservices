@@ -1,0 +1,2 @@
+jwt:
+  secret: ${JWT_SECRET:dev-local-only-do-not-use-in-production-32b!!}
