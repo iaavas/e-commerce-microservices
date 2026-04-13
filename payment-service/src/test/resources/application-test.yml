@@ -1,0 +1,6 @@
+jwt:
+  secret: test-payment-service-jwt-secret-minimum-32
+
+stripe:
+  secret-key: sk_test_dummy
+  webhook-secret: whsec_dummy

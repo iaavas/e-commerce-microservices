@@ -18,6 +18,9 @@ import com.ecommerce.order.service.OrderService;
 import com.ecommerce.order.web.dto.CheckoutRequest;
 import com.ecommerce.order.web.dto.OrderResponse;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpHeaders;
@@ -26,6 +29,7 @@ import org.springframework.http.HttpStatus;
 @Validated
 @RestController
 @RequestMapping("/api/orders")
+@Tag(name = "Orders", description = "Checkout and order tracking endpoints")
 public class OrderController {
 
 	private final OrderService orderService;
@@ -35,17 +39,23 @@ public class OrderController {
 	}
 
 	@PostMapping("/checkout")
+	@Operation(summary = "Checkout cart into an order")
+	@ApiResponse(responseCode = "200", description = "Order created successfully")
 	public OrderResponse checkout(@AuthenticationPrincipal Jwt jwt, @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
 			@Valid @RequestBody CheckoutRequest request) {
 		return orderService.checkout(userId(jwt), request, authHeader);
 	}
 
 	@GetMapping
+	@Operation(summary = "List current user's orders")
+	@ApiResponse(responseCode = "200", description = "Orders returned")
 	public List<OrderResponse> list(@AuthenticationPrincipal Jwt jwt) {
 		return orderService.listOrders(userId(jwt));
 	}
 
 	@GetMapping("/{orderId}")
+	@Operation(summary = "Get current user's order details")
+	@ApiResponse(responseCode = "200", description = "Order returned")
 	public OrderResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable Long orderId) {
 		return orderService.getOrder(userId(jwt), orderId);
 	}

@@ -1,4 +1,4 @@
-package com.ecommerce.order.security;
+package com.ecommerce.payment.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,10 +23,9 @@ public class SecurityConfig {
 				.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
+						.requestMatchers("/api/payments/webhook").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-						.requestMatchers("/api/internal/orders/**").permitAll()
-						.requestMatchers("/api/orders/**").authenticated()
-						.requestMatchers("/api/admin/orders/**").authenticated()
+						.requestMatchers("/api/payments/**").authenticated()
 						.anyRequest().denyAll());
 		return http.build();
 	}

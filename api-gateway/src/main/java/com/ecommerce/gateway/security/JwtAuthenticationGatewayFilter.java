@@ -72,6 +72,12 @@ public class JwtAuthenticationGatewayFilter implements GlobalFilter, Ordered {
 		if (path.startsWith("/actuator")) {
 			return true;
 		}
+		if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
+			return true;
+		}
+		if (path.startsWith("/order-service/v3/api-docs") || path.startsWith("/payment-service/v3/api-docs")) {
+			return true;
+		}
 		if ("/auth/register".equals(path) || "/auth/login".equals(path)) {
 			return true;
 		}
