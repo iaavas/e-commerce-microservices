@@ -1,18 +1,18 @@
 server:
-  port: 9105
+  port: 9106
 
 spring:
   application:
-    name: notification-service
+    name: inventory-service
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: notification-service
+      group-id: inventory-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.value.default.type: com.ecommerce.notification.kafka.OrderPlacedEvent
+        spring.json.value.default.type: com.ecommerce.inventory.kafka.OrderPlacedEvent
         spring.json.trusted.packages: com.ecommerce.*
 
 eureka:

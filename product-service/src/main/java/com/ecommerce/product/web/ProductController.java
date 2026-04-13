@@ -22,8 +22,9 @@ public class ProductController {
 	}
 
 	@GetMapping
-	public List<ProductResponse> list(@RequestParam(name = "category", required = false) Long categoryId) {
-		return productService.listProducts(categoryId);
+	public List<ProductResponse> list(@RequestParam(name = "category", required = false) Long categoryId,
+			@RequestParam(name = "q", required = false) String query) {
+		return productService.listProducts(categoryId, query);
 	}
 
 	@GetMapping("/{id}")

@@ -14,6 +14,7 @@ import com.ecommerce.product.domain.Category;
 import com.ecommerce.product.domain.Product;
 import com.ecommerce.product.repo.CategoryRepository;
 import com.ecommerce.product.repo.ProductRepository;
+import com.ecommerce.product.search.ProductSearchGateway;
 import com.ecommerce.product.web.dto.CategorySummary;
 import com.ecommerce.product.web.dto.ProductRequest;
 import com.ecommerce.product.web.dto.ProductResponse;
@@ -23,15 +24,21 @@ public class ProductService {
 
 	private final ProductRepository productRepository;
 	private final CategoryRepository categoryRepository;
+	private final ProductSearchGateway productSearchGateway;
 
-	public ProductService(ProductRepository productRepository, CategoryRepository categoryRepository) {
+	public ProductService(ProductRepository productRepository, CategoryRepository categoryRepository,
+			ProductSearchGateway productSearchGateway) {
 		this.productRepository = productRepository;
 		this.categoryRepository = categoryRepository;
+		this.productSearchGateway = productSearchGateway;
 	}
 
 	@Cacheable(value = "products", key = "'list:' + ( #categoryId == null ? 'all' : #categoryId )")
 	@Transactional(readOnly = true)
-	public List<ProductResponse> listProducts(Long categoryId) {
+	public List<ProductResponse> listProducts(Long categoryId, String query) {
+		if (query != null && !query.isBlank()) {
+			return productSearchGateway.search(query.trim(), categoryId);
+		}
 		List<Product> products = categoryId == null ? productRepository.findAll()
 				: productRepository.findByCategory_Id(categoryId);
 		return products.stream().map(this::toResponse).toList();
@@ -52,7 +59,9 @@ public class ProductService {
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
 		Product product = new Product();
 		applyRequest(product, request, category);
-		return toResponse(productRepository.save(product));
+		Product saved = productRepository.save(product);
+		productSearchGateway.upsert(saved);
+		return toResponse(saved);
 	}
 
 	@CacheEvict(value = "products", allEntries = true)
@@ -63,7 +72,9 @@ public class ProductService {
 		Category category = categoryRepository.findById(request.getCategoryId())
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
 		applyRequest(product, request, category);
-		return toResponse(productRepository.save(product));
+		Product saved = productRepository.save(product);
+		productSearchGateway.upsert(saved);
+		return toResponse(saved);
 	}
 
 	@CacheEvict(value = "products", allEntries = true)
@@ -73,6 +84,7 @@ public class ProductService {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found");
 		}
 		productRepository.deleteById(id);
+		productSearchGateway.deleteById(id);
 	}
 
 	/**
@@ -92,7 +104,8 @@ public class ProductService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient stock");
 		}
 		product.setStockQuantity(current - quantity);
-		productRepository.save(product);
+		Product saved = productRepository.save(product);
+		productSearchGateway.upsert(saved);
 	}
 
 	private void applyRequest(Product product, ProductRequest request, Category category) {

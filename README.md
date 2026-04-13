@@ -37,10 +37,11 @@ The diagram below shows how clients reach the API Gateway, how services register
 | Auth Service | **8081** | `POST /auth/register`, `POST /auth/login` |
 | Eureka (Service Registry) | **8761** | Service discovery UI and registry |
 | Config Server | **8888** | Optional central configuration |
-| Product Service | 9102 | Catalog (stub) |
-| Order Service | 9103 | Orders (stub) |
-| Payment Service | 9104 | Payments (stub) |
-| Notification Service | 9105 | Notifications (stub) |
+| Product Service | 9102 | Catalog, admin stock updates, Redis cart, Elasticsearch search |
+| Order Service | 9103 | Checkout, order history/tracking, Kafka order events |
+| Payment Service | 9104 | Stripe payment intents/webhooks, order confirmation callback |
+| Notification Service | 9105 | Kafka consumer for order confirmation emails |
+| Inventory Service | 9106 | Kafka consumer for async inventory deduction |
 
 Through the gateway, clients typically use **port 8080** (not direct service ports). Auth endpoints are also available as `http://localhost:8080/auth/...` when the gateway is running.
 
@@ -52,6 +53,9 @@ Through the gateway, clients typically use **port 8080** (not direct service por
 2. **Maven** — or use the included **`./mvnw`** (Unix/macOS) / **`mvnw.cmd`** (Windows).
 3. **PostgreSQL** — required by **auth-service**. Easiest: start the DB with Docker (see below). Or install PostgreSQL locally and use the same host, port, database, and credentials.
 4. **Docker** (recommended) — runs PostgreSQL from `docker-compose.yml` so you avoid `Connection refused` on `localhost:5432`.
+5. **Redis** — required for runtime cart persistence in `product-service`.
+6. **Kafka** — required for `order.placed` event publishing/consumption.
+7. **Elasticsearch** — required for runtime full-text product search.
 
 ---
 
@@ -82,10 +86,16 @@ If you see **`Connection refused`** to `localhost:5432`, start the container abo
 | Variable | Used by | Purpose |
 |----------|---------|---------|
 | `JWT_SECRET` | **auth-service**, **api-gateway** | Shared HMAC secret for signing and validating JWTs. **Must be identical** on both. Minimum length suitable for HS256 (use a long random string in production). |
-| `PGHOST` | **auth-service** | PostgreSQL host (default `localhost`; use `postgres` if the app runs in the same Docker network as Compose). |
-| `PGPORT` | **auth-service** | PostgreSQL port (default `5432`). |
-| `PGDATABASE` | **auth-service** | Database name (default `ecommerce`, matching `docker-compose.yml`). |
-| `PGUSER` / `PGPASSWORD` | **auth-service** | Credentials (defaults `postgres` / `postgres`). |
+| `PGHOST` | **auth-service**, **product-service**, **order-service** | PostgreSQL host (default `localhost`; use `postgres` if the app runs in the same Docker network as Compose). |
+| `PGPORT` | **auth-service**, **product-service**, **order-service** | PostgreSQL port (default `5432`). |
+| `PGDATABASE` | **auth-service**, **product-service**, **order-service** | Database name (default `ecommerce`, matching `docker-compose.yml`). |
+| `PGUSER` / `PGPASSWORD` | **auth-service**, **product-service**, **order-service** | Credentials (defaults `postgres` / `postgres`). |
+| `REDIS_HOST` / `REDIS_PORT` | **product-service** | Redis host/port for cart and cache (defaults `localhost:6379`). |
+| `KAFKA_BOOTSTRAP_SERVERS` | **order-service**, **notification-service**, **inventory-service** | Kafka bootstrap servers (default `localhost:9092`). |
+| `ELASTICSEARCH_URIS` | **product-service** | Elasticsearch endpoint(s), default `http://localhost:9200`. |
+| `STRIPE_SECRET_KEY` | **payment-service** | Stripe API secret key (sandbox for dev). |
+| `STRIPE_WEBHOOK_SECRET` | **payment-service** | Stripe webhook signing secret. |
+| `INTERNAL_API_KEY` | **payment-service**, **order-service** | Shared internal key used by payment webhook callback to confirm orders. Must match on both services. |
 
 If unset, both services fall back to the default in `application.yml` (development only).
 
@@ -143,13 +153,14 @@ Start the database before auth-service (for example `docker compose up -d postgr
 
 Direct base URL: `http://localhost:8081`
 
-### 5. Domain services (stubs)
+### 5. Domain services
 
 ```bash
 ./mvnw -pl product-service spring-boot:run
 ./mvnw -pl order-service spring-boot:run
 ./mvnw -pl payment-service spring-boot:run
 ./mvnw -pl notification-service spring-boot:run
+./mvnw -pl inventory-service spring-boot:run
 ```
 
 ### 6. API Gateway (last)
@@ -207,6 +218,62 @@ With Eureka’s lower-case service id, routes like `http://localhost:8080/<servi
 
 ---
 
+## Feature walkthrough
+
+### Cart (Redis-backed, product-service)
+
+- `POST /api/cart/add` adds product + quantity to the authenticated user's cart.
+- `PUT /api/cart/update/{itemId}` changes quantity for an item.
+- `DELETE /api/cart/remove/{itemId}` removes an item.
+- `GET /api/cart` returns current cart lines and `totalPrice`.
+- Cart data is stored in Redis as a per-user hash key: `cart:user:{uid}`.
+
+### Orders and checkout (order-service)
+
+- `POST /api/orders/checkout`:
+  1. Reads the current cart from product-service.
+  2. Deducts stock for each line.
+  3. Persists `Order` + `OrderItem` + shipping address.
+  4. Clears cart items.
+  5. Publishes `OrderPlacedEvent` to Kafka topic `order.placed`.
+- `GET /api/orders` lists current user orders.
+- `GET /api/orders/{orderId}` returns order details for owner only.
+- `PUT /api/admin/orders/{orderId}/status` updates order status.
+
+### Payments (payment-service, Stripe sandbox)
+
+- `POST /api/payments/create-intent` creates a Stripe PaymentIntent and returns `clientSecret`.
+- `POST /api/payments/webhook` handles Stripe webhook events.
+- On `payment_intent.succeeded`:
+  - payment-service extracts `orderId` from metadata.
+  - calls internal order endpoint with `X-Internal-Api-Key`.
+  - order-service updates the order status to `CONFIRMED`.
+
+### Kafka event-driven flow
+
+- order-service publishes `OrderPlacedEvent` to topic `order.placed`.
+- notification-service consumes `order.placed` and triggers confirmation email workflow (currently logged).
+- inventory-service consumes `order.placed` and performs async stock deduction workflow (currently logged).
+- This decouples checkout from side-effects and improves resilience.
+
+### Product search (Elasticsearch)
+
+- product-service indexes products into Elasticsearch index `products`.
+- `GET /api/products?q=<term>` runs full-text search from Elasticsearch (with optional `category` filter).
+- Product create/update/delete/stock-deduct operations sync index documents.
+- A startup bootstrap reindexes catalog data into Elasticsearch in non-test profiles.
+
+### Swagger/OpenAPI
+
+- Gateway Swagger UI is available at:
+  - [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- Aggregated docs exposed:
+  - `order-service` docs
+  - `payment-service` docs
+- Both services are configured with Bearer JWT auth in OpenAPI so protected routes can be exercised from Swagger UI.
+
+---
+
 ## Testing
 
 Run all module tests from the root:
@@ -235,6 +302,7 @@ ecommerce-platform/
 ├── order-service/
 ├── payment-service/
 ├── notification-service/
+├── inventory-service/
 ├── ecommerce_microservices_architecture.svg
 ├── docker-compose.yml
 ├── pom.xml

@@ -14,6 +14,7 @@ import com.ecommerce.order.domain.Order;
 import com.ecommerce.order.domain.OrderItem;
 import com.ecommerce.order.domain.OrderStatus;
 import com.ecommerce.order.domain.ShippingAddress;
+import com.ecommerce.order.kafka.OrderEventPublisher;
 import com.ecommerce.order.repo.OrderRepository;
 import com.ecommerce.order.web.dto.CheckoutRequest;
 import com.ecommerce.order.web.dto.OrderItemResponse;
@@ -26,10 +27,13 @@ public class OrderService {
 
 	private final OrderRepository orderRepository;
 	private final ProductServiceClient productServiceClient;
+	private final OrderEventPublisher orderEventPublisher;
 
-	public OrderService(OrderRepository orderRepository, ProductServiceClient productServiceClient) {
+	public OrderService(OrderRepository orderRepository, ProductServiceClient productServiceClient,
+			OrderEventPublisher orderEventPublisher) {
 		this.orderRepository = orderRepository;
 		this.productServiceClient = productServiceClient;
+		this.orderEventPublisher = orderEventPublisher;
 	}
 
 	@Transactional
@@ -63,6 +67,7 @@ public class OrderService {
 		for (CartItemResponse item : cart.items()) {
 			productServiceClient.removeCartItem(bearerToken, item.productId());
 		}
+		orderEventPublisher.publishOrderPlaced(saved);
 
 		return toResponse(saved);
 	}
