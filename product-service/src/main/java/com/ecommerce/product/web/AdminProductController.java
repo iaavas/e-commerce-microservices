@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ecommerce.product.service.ProductService;
+import com.ecommerce.product.web.dto.DeductStockRequest;
 import com.ecommerce.product.web.dto.ProductRequest;
 import com.ecommerce.product.web.dto.ProductResponse;
 
@@ -43,5 +44,11 @@ public class AdminProductController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void delete(@PathVariable Long id) {
 		productService.deleteProduct(id);
+	}
+
+	@PostMapping("/{id}/deduct-stock")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void deductStock(@PathVariable Long id, @Valid @RequestBody DeductStockRequest request) {
+		productService.deductStock(id, request.getQuantity());
 	}
 }

@@ -4,8 +4,19 @@ server:
 spring:
   application:
     name: order-service
+  datasource:
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:ecommerce}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
 
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
+jwt:
+  secret: ${JWT_SECRET:}
