@@ -25,6 +25,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").permitAll()
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
+						.requestMatchers("/api/cart/**").authenticated()
 						.requestMatchers("/api/admin/**").authenticated()
 						.anyRequest().denyAll());
 		return http.build();
